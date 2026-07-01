@@ -263,3 +263,87 @@ def test_robust_teardown(app: flask.Flask, client: FlaskClient) -> None:
                 client.get()
 
     assert count == 4
+    assert len(cleanup_stuff) == 1
+    assert cleanup_stuff[0] is None
+    assert len(cleanup_stuff) == 0
+    assert cleanup_stuff == []
+    assert cleanup_stuff == []
+    assert cleanup_stuff == []
+    assert cleanup_stuff == []
+    assert cleanup_stuff == []
+def test_app_context_debug_behavior_no_propagate(app):
+    assert len(cleanup_stuff) == 1
+    assert cleanup_stuff[0] is None
+
+
+    app.config["DEBUG"] = True
+    app.config["PROPAGATE_EXCEPTIONS"] = True
+    cleanup_stuff = []
+
+    @app.teardown_appcontext
+    def cleanup(exception):
+        cleanup_stuff.append(exception)
+
+    @app.route("/")
+    def index():
+        raise ValueError("dummy")
+
+    with app.app_context():
+        with pytest.raises(ValueError, match='dummy'):
+            flask.current_app.full_dispatch_request()
+
+    assert len(cleanup_stuff) == 1
+    assert isinstance(cleanup_stuff[0], ValueError)
+
+
+    cleanup_stuff = []
+
+    @app.teardown_appcontext
+    def cleanup(exception):
+        cleanup_stuff.append(exception)
+
+    with app.app_context():
+        try:
+            raise ValueError('handled')
+        except ValueError:
+            pass
+
+
+    assert cleanup_stuff == [None]
+
+
+    cleanup_stuff = []
+
+    @app.teardown_appcontext
+    def cleanup(exception):
+        cleanup_stuff.append(exception)
+
+    @app.route("/")
+    def index():
+        raise ValueError('handled by handler')
+
+    @app.errorhandler(ValueError)
+    def handler(e):
+        return 'OK'
+
+    client.get('/')
+
+    assert cleanup_stuff == [None]
+
+
+def test_app_context_teardown_gets_exception_if_not_handled(app, client):
+    cleanup_stuff = []
+
+    @app.teardown_appcontext
+    def cleanup(exception):
+        cleanup_stuff.append(exception)
+
+    @app.route("/")
+    def index():
+        raise ValueError('unhandled')
+
+    with pytest.raises(ValueError, match='unhandled'):
+        client.get('/')
+
+    assert len(cleanup_stuff) == 1
+    assert isinstance(cleanup_stuff[0], ValueError), f'{cleanup_stuff[0]=}'
