@@ -538,3 +538,10 @@ def __getattr__(name: str) -> t.Any:
         return AppContext
 
     raise AttributeError(name)
+    def setdefault(self, name: str, default: t.Any = _sentinel) -> t.Any:
+
+        .. versionadded:: 0.11
+        """
+        if name not in self.__dict__:
+            self.__dict__[name] = default
+        return self.__dict__[name]
